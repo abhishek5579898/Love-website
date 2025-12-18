@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
@@ -13,9 +13,6 @@ import {
 } from 'lucide-react';
 
 // --- Assets & Constants ---
-// --- Assets & Constants ---
-// Placeholders - You can replace these with your own links manually if you wish, 
-// OR use the upload feature to add them securely to the database.
 const COUPLE_PHOTO_URL = "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?q=80&w=687&auto=format&fit=crop";
 import AboutUsPhoto from './assets/about/HomePage.jpeg';
 import MeetingPhoto from './assets/about/1st Meeting.jpg';
@@ -34,22 +31,7 @@ const ABOUT_US_PHOTO_URL = AboutUsPhoto;
 // --- Gallery Data ---
 const GALLERY_IMAGES = []; // Starts empty now. Upload photos to fill it!
 
-// --- Music Playlist Data - Import Songs ---
-import BulleyaSong from './assets/songs/Bulleya Ae Dil Hai Mushkil 320 Kbps.mp3';
-import DilDiyanGallanSong from './assets/songs/Dil Diyan Gallan Tiger Zinda Hai 320 Kbps.mp3';
-import GuzarishSong from './assets/songs/Guzarish Ghajini 320 Kbps.mp3';
-import HumkoHumiseSong from './assets/songs/Humko Humise Chura Lo Mohabbatein 320 Kbps.mp3';
-import JugniSong from './assets/songs/Jugni Cocktail 320 Kbps.mp3';
-import LagJaGaleSong from './assets/songs/Lag Ja Gale Bhoomi 320 Kbps.mp3';
-import MainAgarKahoonSong from './assets/songs/Main Agar Kahoon Om Shanti Om 320 Kbps.mp3';
-import NitKhairMangaSong from './assets/songs/Nit Khair Manga Raid 320 Kbps.mp3';
-import PeeLoonSong from './assets/songs/Pee Loon Once Upon A Time In Mumbaai 320 Kbps.mp3';
-import SajdaaSong from './assets/songs/Sajdaa (PenduJatt.Com.Se) (2).mp3';
-import SanuEkPalSong from './assets/songs/Sanu Ek Pal Chain Raid 320 Kbps.mp3';
-import TereLiyeSong from './assets/songs/Tere Liye Prince 320 Kbps.mp3';
-import TumAgarSong from './assets/songs/Tum Agar Saath Dene Ka Vada Karo Hamraaz 320 Kbps.mp3';
-
-// --- Import Cover Images ---
+// --- Import Cover Images (small, fast to load) ---
 import BulleyaCover from './assets/covers/Bulleya.jpg.jpg';
 import DilDiyanGallanCover from './assets/covers/Dil Diyan Gallan.jpg.jpg';
 import GuzarishCover from './assets/covers/Guzarish.jpg.jpg';
@@ -64,21 +46,21 @@ import SanuEkPalCover from './assets/covers/Sanu Ek Pal Chain.jpg.jpeg';
 import TereLiyeCover from './assets/covers/Tere Liye.jpg.jpg';
 import TumAgarCover from './assets/covers/Tum Agar Saath.jpg.jpg';
 
-// Songs sorted alphabetically
+// --- Songs Data (audio loaded dynamically, not bundled) ---
 const SONGS_DATA = [
-  { id: 1, title: "Bulleya", artist: "Amit Mishra, Shilpa Rao", cover: BulleyaCover, audioUrl: BulleyaSong },
-  { id: 2, title: "Dil Diyan Gallan", artist: "Atif Aslam", cover: DilDiyanGallanCover, audioUrl: DilDiyanGallanSong },
-  { id: 3, title: "Guzarish", artist: "Javed Ali, Sonu Nigam", cover: GuzarishCover, audioUrl: GuzarishSong },
-  { id: 4, title: "Humko Humise Chura Lo", artist: "Lata Mangeshkar, Udit Narayan", cover: HumkoHumiseCover, audioUrl: HumkoHumiseSong },
-  { id: 5, title: "Jugni", artist: "Clinton Cerejo, Vishal Dadlani", cover: JugniCover, audioUrl: JugniSong },
-  { id: 6, title: "Lag Ja Gale", artist: "Rahat Fateh Ali Khan", cover: LagJaGaleCover, audioUrl: LagJaGaleSong },
-  { id: 7, title: "Main Agar Kahoon", artist: "Sonu Nigam, Shreya Ghoshal", cover: MainAgarKahoonCover, audioUrl: MainAgarKahoonSong },
-  { id: 8, title: "Nit Khair Manga", artist: "Rahat Fateh Ali Khan", cover: NitKhairMangaCover, audioUrl: NitKhairMangaSong },
-  { id: 9, title: "Pee Loon", artist: "Mohit Chauhan", cover: PeeLoonCover, audioUrl: PeeLoonSong },
-  { id: 10, title: "Sajdaa", artist: "Rahat Fateh Ali Khan, Richa Sharma", cover: SajdaaCover, audioUrl: SajdaaSong },
-  { id: 11, title: "Sanu Ek Pal Chain", artist: "Rahat Fateh Ali Khan", cover: SanuEkPalCover, audioUrl: SanuEkPalSong },
-  { id: 12, title: "Tere Liye", artist: "Atif Aslam, Shreya Ghoshal", cover: TereLiyeCover, audioUrl: TereLiyeSong },
-  { id: 13, title: "Tum Agar Saath Dene Ka Vada Karo", artist: "Mahendra Kapoor", cover: TumAgarCover, audioUrl: TumAgarSong },
+  { id: 1, title: "Bulleya", artist: "Amit Mishra, Shilpa Rao", cover: BulleyaCover, audioUrl: new URL('./assets/songs/Bulleya Ae Dil Hai Mushkil 320 Kbps.mp3', import.meta.url).href },
+  { id: 2, title: "Dil Diyan Gallan", artist: "Atif Aslam", cover: DilDiyanGallanCover, audioUrl: new URL('./assets/songs/Dil Diyan Gallan Tiger Zinda Hai 320 Kbps.mp3', import.meta.url).href },
+  { id: 3, title: "Guzarish", artist: "Javed Ali, Sonu Nigam", cover: GuzarishCover, audioUrl: new URL('./assets/songs/Guzarish Ghajini 320 Kbps.mp3', import.meta.url).href },
+  { id: 4, title: "Humko Humise Chura Lo", artist: "Lata Mangeshkar, Udit Narayan", cover: HumkoHumiseCover, audioUrl: new URL('./assets/songs/Humko Humise Chura Lo Mohabbatein 320 Kbps.mp3', import.meta.url).href },
+  { id: 5, title: "Jugni", artist: "Clinton Cerejo, Vishal Dadlani", cover: JugniCover, audioUrl: new URL('./assets/songs/Jugni Cocktail 320 Kbps.mp3', import.meta.url).href },
+  { id: 6, title: "Lag Ja Gale", artist: "Rahat Fateh Ali Khan", cover: LagJaGaleCover, audioUrl: new URL('./assets/songs/Lag Ja Gale Bhoomi 320 Kbps.mp3', import.meta.url).href },
+  { id: 7, title: "Main Agar Kahoon", artist: "Sonu Nigam, Shreya Ghoshal", cover: MainAgarKahoonCover, audioUrl: new URL('./assets/songs/Main Agar Kahoon Om Shanti Om 320 Kbps.mp3', import.meta.url).href },
+  { id: 8, title: "Nit Khair Manga", artist: "Rahat Fateh Ali Khan", cover: NitKhairMangaCover, audioUrl: new URL('./assets/songs/Nit Khair Manga Raid 320 Kbps.mp3', import.meta.url).href },
+  { id: 9, title: "Pee Loon", artist: "Mohit Chauhan", cover: PeeLoonCover, audioUrl: new URL('./assets/songs/Pee Loon Once Upon A Time In Mumbaai 320 Kbps.mp3', import.meta.url).href },
+  { id: 10, title: "Sajdaa", artist: "Rahat Fateh Ali Khan, Richa Sharma", cover: SajdaaCover, audioUrl: new URL('./assets/songs/Sajdaa (PenduJatt.Com.Se) (2).mp3', import.meta.url).href },
+  { id: 11, title: "Sanu Ek Pal Chain", artist: "Rahat Fateh Ali Khan", cover: SanuEkPalCover, audioUrl: new URL('./assets/songs/Sanu Ek Pal Chain Raid 320 Kbps.mp3', import.meta.url).href },
+  { id: 12, title: "Tere Liye", artist: "Atif Aslam, Shreya Ghoshal", cover: TereLiyeCover, audioUrl: new URL('./assets/songs/Tere Liye Prince 320 Kbps.mp3', import.meta.url).href },
+  { id: 13, title: "Tum Agar Saath Dene Ka Vada Karo", artist: "Mahendra Kapoor", cover: TumAgarCover, audioUrl: new URL('./assets/songs/Tum Agar Saath Dene Ka Vada Karo Hamraaz 320 Kbps.mp3', import.meta.url).href },
 ];
 
 // --- Journey Data ---
@@ -150,7 +132,7 @@ const JOURNEY_DATA = [
       </>
     ),
     img: BirthdayPhoto,
-    imgPos: "object-cover object-center"
+    imgPos: "object-cover object-top"
   },
   {
     title: "You Come Home",
@@ -174,7 +156,7 @@ const JOURNEY_DATA = [
       </>
     ),
     img: HomeVisitPhoto,
-    imgPos: "object-cover object-center"
+    imgPos: "object-cover object-top"
   },
   {
     title: "Propose Day",
