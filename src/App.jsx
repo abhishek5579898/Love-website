@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback, memo } from 'react';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc, getDoc, setDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from './firebase';
 
@@ -333,6 +333,122 @@ const formatTime = (time) => {
 
 // --- Components ---
 
+// Skeleton Loader with shimmer effect
+const Skeleton = ({ className = "" }) => (
+  <div className={`animate-pulse bg-gradient-to-r from-rose-100 via-rose-50 to-rose-100 bg-[length:200%_100%] animate-shimmer-move rounded-lg ${className}`}>
+    <style>{`
+      @keyframes shimmer-move {
+        0% { background-position: 200% 0; }
+        100% { background-position: -200% 0; }
+      }
+      .animate-shimmer-move { animation: shimmer-move 1.5s ease-in-out infinite; }
+    `}</style>
+  </div>
+);
+
+// Gallery Skeleton
+const GallerySkeleton = () => (
+  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 p-4">
+    {[...Array(8)].map((_, i) => (
+      <Skeleton key={i} className="aspect-square rounded-2xl" />
+    ))}
+  </div>
+);
+
+// Love Messages Component (Mini Chat)
+const LoveMessages = ({ userName }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const messagesEndRef = useRef(null);
+
+  // Fetch messages in real-time
+  useEffect(() => {
+    const q = query(collection(db, "love_messages"), orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setMessages(msgs);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Scroll to bottom on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    try {
+      await addDoc(collection(db, "love_messages"), {
+        text: newMessage,
+        sender: userName,
+        createdAt: serverTimestamp()
+      });
+      setNewMessage('');
+    } catch { alert('Failed to send message'); }
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-rose-50 to-white pb-32">
+      <div className="max-w-2xl mx-auto p-4">
+        {/* Header */}
+        <div className="text-center mb-6 pt-8">
+          <h2 className="text-3xl font-serif text-rose-800 mb-2">💌 Love Notes</h2>
+          <p className="text-rose-400 italic">Little messages from the heart</p>
+        </div>
+
+        {/* Messages Container */}
+        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-lg border border-rose-100 p-4 min-h-[50vh] max-h-[60vh] overflow-y-auto">
+          {loading ? (
+            <div className="space-y-4">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-3/4" />)}
+            </div>
+          ) : messages.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-40 text-gray-400">
+              <Heart size={40} className="mb-2 text-rose-200" />
+              <p>No messages yet. Start the conversation! 💕</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {messages.map((msg) => {
+                const isMe = msg.sender?.toLowerCase().includes('abhi') || msg.sender?.toLowerCase().includes('abhishek');
+                return (
+                  <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'}`}>
+                    <div className={`max-w-[80%] px-4 py-3 rounded-2xl ${isMe ? 'bg-rose-500 text-white rounded-br-sm' : 'bg-gray-100 text-gray-800 rounded-bl-sm'}`}>
+                      <p className="text-sm leading-relaxed">{msg.text}</p>
+                      <p className={`text-[10px] mt-1 ${isMe ? 'text-rose-200' : 'text-gray-400'}`}>
+                        {msg.sender} • {msg.createdAt?.toDate?.()?.toLocaleTimeString?.([], { hour: '2-digit', minute: '2-digit' }) || 'now'}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* Input */}
+        <form onSubmit={sendMessage} className="mt-4 flex gap-2">
+          <input
+            type="text"
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Write something sweet... 💕"
+            className="flex-1 px-5 py-4 rounded-full bg-white border-2 border-rose-100 focus:border-rose-300 focus:outline-none text-gray-700 placeholder-rose-300"
+          />
+          <button type="submit" className="px-6 py-4 bg-rose-500 text-white rounded-full font-bold hover:bg-rose-600 transition-colors shadow-lg">
+            Send
+          </button>
+        </form>
+      </div>
+    </div>
+  );
+};
+
 const FloatingHearts = React.memo(() => {
   const [count, setCount] = useState(0);
   useEffect(() => {
@@ -368,99 +484,196 @@ const LoadingScreen = ({ onComplete }) => {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    // Progress timer
     const progressTimer = setInterval(() => {
       setProgress((prev) => {
         if (prev >= 100) return 100;
-        return prev + 1;
+        return prev + 1.5; // Slightly faster
       });
-    }, 40);
-
-    // Cleanup
+    }, 35);
     return () => clearInterval(progressTimer);
   }, []);
 
-  // Completion effect - separates navigation from progress calculation logic
   useEffect(() => {
     if (progress >= 100) {
-      // Small buffer to show 100% then content
       const completionTimer = setTimeout(() => {
         onComplete();
-      }, 500);
+      }, 400);
       return () => clearTimeout(completionTimer);
     }
   }, [progress, onComplete]);
 
   return (
-    <div className="fixed inset-0 bg-rose-50 flex flex-col items-center justify-center z-50 overflow-hidden">
-      <div className="relative w-40 h-40 md:w-56 md:h-56">
-        <svg viewBox="0 0 100 90" className="w-full h-full overflow-visible drop-shadow-2xl">
+    <div className="fixed inset-0 bg-gradient-to-br from-rose-100 via-pink-50 to-rose-200 flex flex-col items-center justify-center z-50 overflow-hidden">
+      {/* Background Glow Effects */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-rose-400/30 rounded-full blur-[100px] animate-pulse"></div>
+        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-pink-500/20 rounded-full blur-[80px] animate-pulse delay-500"></div>
+      </div>
+
+      {/* 3D Heart Container with Shadow */}
+      <div className="relative w-48 h-48 md:w-64 md:h-64" style={{ perspective: '1000px' }}>
+        {/* Outer Glow */}
+        <div className="absolute inset-0 blur-xl bg-rose-500/30 rounded-full scale-110 animate-pulse"></div>
+
+        {/* Main Heart SVG */}
+        <svg viewBox="0 0 100 90" className="w-full h-full overflow-visible relative z-10" style={{ filter: 'drop-shadow(0 10px 30px rgba(225, 29, 72, 0.4))' }}>
           <defs>
             <mask id="heartMask">
               <path d="M50,88.9 C20,58 0,38 0,22.5 C0,9 10,0 23.5,0 C31.5,0 39,5 50,15 C61,5 68.5,0 76.5,0 C90,0 100,9 100,22.5 C100,38 80,58 50,88.9 Z" fill="white" />
             </mask>
+            {/* Gradient for water */}
+            <linearGradient id="waterGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+              <stop offset="0%" stopColor="#fb7185" />
+              <stop offset="50%" stopColor="#e11d48" />
+              <stop offset="100%" stopColor="#be123c" />
+            </linearGradient>
+            {/* Shimmer gradient */}
+            <linearGradient id="shimmerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="transparent" />
+              <stop offset="50%" stopColor="rgba(255,255,255,0.3)" />
+              <stop offset="100%" stopColor="transparent" />
+            </linearGradient>
           </defs>
 
-          {/* Hollow Heart Outline */}
+          {/* Heart Glass Outline with 3D effect */}
           <path d="M50,88.9 C20,58 0,38 0,22.5 C0,9 10,0 23.5,0 C31.5,0 39,5 50,15 C61,5 68.5,0 76.5,0 C90,0 100,9 100,22.5 C100,38 80,58 50,88.9 Z"
-            fill="none"
-            stroke="#e11d48"
-            strokeWidth="2"
-            className="drop-shadow-sm"
+            fill="rgba(255,255,255,0.1)"
+            stroke="url(#waterGradient)"
+            strokeWidth="3"
           />
 
-          {/* Liquid Fill */}
+          {/* Inner highlight for glass effect */}
+          <path d="M50,88.9 C20,58 0,38 0,22.5 C0,9 10,0 23.5,0 C31.5,0 39,5 50,15 C61,5 68.5,0 76.5,0 C90,0 100,9 100,22.5 C100,38 80,58 50,88.9 Z"
+            fill="none"
+            stroke="rgba(255,255,255,0.5)"
+            strokeWidth="1"
+            transform="translate(2, 2) scale(0.95)"
+          />
+
+          {/* Liquid Fill with gradient */}
           <g mask="url(#heartMask)">
-            <g className="transition-transform duration-100 ease-linear" style={{ transform: `translateY(${100 - progress}%)` }}>
+            <g className="transition-transform duration-150 ease-out" style={{ transform: `translateY(${100 - progress}%)` }}>
+              {/* Main gradient water body */}
+              <rect x="-50" y="0" width="200" height="200" fill="url(#waterGradient)" />
 
-              {/* Main Red Water Body (extends downwards) */}
-              <rect x="-50" y="0" width="200" height="200" fill="#e11d48" className="opacity-90" />
+              {/* Shimmer effect layer */}
+              <rect x="-50" y="0" width="200" height="200" fill="url(#shimmerGrad)" className="animate-shimmer" />
 
-              {/* Back Wave (Lighter) */}
-              <path d="M0,0 C30,10 50,0 80,5 C110,10 130,0 160,5 V20 H0 Z"
+              {/* Back Wave (Lighter, more visible) */}
+              <path d="M-50,0 C-20,12 10,0 40,8 C70,16 100,4 130,10 C160,16 180,6 200,12 V30 H-50 Z"
                 fill="#fda4af"
-                className="animate-wave-slow absolute -top-4 opacity-60"
-                transform="translate(0, -5)"
+                className="animate-wave-back"
               />
 
-              {/* Front Wave (Darker) */}
-              <path d="M0,0 C30,5 50,15 80,5 C110,-5 130,5 160,0 V20 H0 Z"
-                fill="#e11d48"
-                className="animate-wave absolute -top-4"
-                transform="translate(0, -3)"
+              {/* Middle Wave */}
+              <path d="M-50,5 C-10,15 20,3 50,10 C80,17 110,5 140,12 C170,19 190,8 220,14 V30 H-50 Z"
+                fill="#fb7185"
+                className="animate-wave-mid"
               />
+
+              {/* Front Wave (Darker, prominent) */}
+              <path d="M-50,8 C0,18 30,6 60,14 C90,22 120,10 150,16 C180,22 200,12 230,18 V30 H-50 Z"
+                fill="#e11d48"
+                className="animate-wave-front"
+              />
+
+              {/* Bubbles */}
+              <circle cx="25" cy="40" r="3" fill="rgba(255,255,255,0.6)" className="animate-bubble-1" />
+              <circle cx="55" cy="60" r="2" fill="rgba(255,255,255,0.5)" className="animate-bubble-2" />
+              <circle cx="75" cy="50" r="2.5" fill="rgba(255,255,255,0.4)" className="animate-bubble-3" />
+              <circle cx="40" cy="70" r="1.5" fill="rgba(255,255,255,0.5)" className="animate-bubble-4" />
             </g>
           </g>
-        </svg>
 
-        {/* Floating Particles/Bubbles inside heart if desired, but sticking to clean user request */}
+          {/* Sparkle effects on heart */}
+          <circle cx="25" cy="20" r="2" fill="white" opacity="0.8" className="animate-sparkle" />
+          <circle cx="75" cy="18" r="1.5" fill="white" opacity="0.6" className="animate-sparkle delay-300" />
+        </svg>
       </div>
 
-      {/* Percentage Text Below */}
-      <div className="mt-8 relative">
-        <span className="text-4xl md:text-5xl font-serif font-bold text-rose-600 tabular-nums">
+      {/* Percentage Text with Glow */}
+      <div className="mt-10 relative z-10">
+        <span className="text-5xl md:text-6xl font-serif font-bold bg-gradient-to-r from-rose-600 via-pink-600 to-rose-600 bg-clip-text text-transparent tabular-nums"
+          style={{ textShadow: '0 0 40px rgba(225, 29, 72, 0.3)' }}>
           {Math.round(progress)}%
         </span>
-        <div className="h-1 w-full bg-rose-200 mt-2 rounded-full overflow-hidden">
-          <div className="h-full bg-rose-500 transition-all duration-200" style={{ width: `${progress}%` }}></div>
+      </div>
+
+      {/* Progress Bar with Glow */}
+      <div className="w-48 h-2 bg-white/50 mt-4 rounded-full overflow-hidden backdrop-blur-sm shadow-inner">
+        <div className="h-full bg-gradient-to-r from-rose-400 via-rose-500 to-pink-500 transition-all duration-200 relative"
+          style={{ width: `${progress}%` }}>
+          <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
         </div>
       </div>
 
-      <p className="mt-4 text-rose-400 font-medium animate-pulse">Filling with love...</p>
+      <p className="mt-6 text-rose-500 font-medium tracking-wider uppercase text-sm animate-pulse">
+        Filling with love...
+      </p>
+
+      {/* Floating Hearts in Background */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[...Array(6)].map((_, i) => (
+          <Heart key={i} fill="#fda4af" size={20 + i * 4}
+            className="absolute animate-float-up"
+            style={{
+              left: `${15 + i * 15}%`,
+              bottom: `-${20 + i * 10}px`,
+              animationDelay: `${i * 0.8}s`,
+              opacity: 0.4
+            }}
+          />
+        ))}
+      </div>
 
       <style>{`
-        @keyframes wave-scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+        @keyframes wave-front {
+          0%, 100% { transform: translateX(0); }
+          50% { transform: translateX(-25%); }
         }
-        .animate-wave {
-          animation: wave-scroll 2s linear infinite;
-          width: 200%; 
+        @keyframes wave-mid {
+          0%, 100% { transform: translateX(-10%); }
+          50% { transform: translateX(-35%); }
         }
-        .animate-wave-slow {
-          animation: wave-scroll 3s linear infinite reverse;
-          width: 200%;
+        @keyframes wave-back {
+          0%, 100% { transform: translateX(-20%); }
+          50% { transform: translateX(5%); }
         }
+        .animate-wave-front { animation: wave-front 2s ease-in-out infinite; }
+        .animate-wave-mid { animation: wave-mid 2.5s ease-in-out infinite; }
+        .animate-wave-back { animation: wave-back 3s ease-in-out infinite; }
+        
+        @keyframes bubble {
+          0% { transform: translateY(0) scale(1); opacity: 0.6; }
+          100% { transform: translateY(-80px) scale(0.5); opacity: 0; }
+        }
+        .animate-bubble-1 { animation: bubble 2s ease-out infinite; }
+        .animate-bubble-2 { animation: bubble 2.5s ease-out infinite 0.5s; }
+        .animate-bubble-3 { animation: bubble 2s ease-out infinite 1s; }
+        .animate-bubble-4 { animation: bubble 2.2s ease-out infinite 1.5s; }
+        
+        @keyframes sparkle {
+          0%, 100% { opacity: 0.3; transform: scale(0.8); }
+          50% { opacity: 1; transform: scale(1.2); }
+        }
+        .animate-sparkle { animation: sparkle 1.5s ease-in-out infinite; }
+        
+        @keyframes shimmer {
+          0% { transform: translateX(-100%); }
+          100% { transform: translateX(100%); }
+        }
+        .animate-shimmer { animation: shimmer 2s ease-in-out infinite; }
+        
+        @keyframes float-up {
+          0% { transform: translateY(0) rotate(0deg); opacity: 0; }
+          10% { opacity: 0.4; }
+          90% { opacity: 0.4; }
+          100% { transform: translateY(-100vh) rotate(20deg); opacity: 0; }
+        }
+        .animate-float-up { animation: float-up 8s ease-in-out infinite; }
+        
+        .delay-300 { animation-delay: 0.3s; }
+        .delay-500 { animation-delay: 0.5s; }
       `}</style>
     </div>
   );
@@ -582,10 +795,44 @@ const Countdown = ({ date, title }) => {
 const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
 const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
+// Image compression utility - reduces size by 60-80%
+async function compressImage(file, maxWidth = 1200, quality = 0.8) {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let { width, height } = img;
+
+        // Scale down if larger than maxWidth
+        if (width > maxWidth) {
+          height = (height * maxWidth) / width;
+          width = maxWidth;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          resolve(new File([blob], file.name, { type: 'image/jpeg' }));
+        }, 'image/jpeg', quality);
+      };
+      img.src = e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 async function uploadToCloudinary(file) {
+  // Compress image before uploading
+  const compressedFile = await compressImage(file);
+
   const url = `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`;
   const formData = new FormData();
-  formData.append('file', file);
+  formData.append('file', compressedFile);
   formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
   const res = await fetch(url, {
     method: 'POST',
@@ -1125,9 +1372,14 @@ const Letter = () => {
   );
 };
 
-const SecretSpace = ({ onLock }) => {
+// --- Secret Photos Component (Gallery) ---
+const SecretPhotos = ({ onBack }) => {
   const [photos, setPhotos] = useState([]);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState({ current: 0, total: 0 });
+  const [selectedIndex, setSelectedIndex] = useState(null);
+  const [isSlideshow, setIsSlideshow] = useState(false);
+  const slideshowRef = useRef(null);
 
   // Real-time fetch from Firestore
   useEffect(() => {
@@ -1139,41 +1391,562 @@ const SecretSpace = ({ onLock }) => {
     return () => unsubscribe();
   }, []);
 
-  // Multi-image upload (up to 10) using Cloudinary
+  // Slideshow auto-advance
+  useEffect(() => {
+    if (isSlideshow && photos.length > 0) {
+      slideshowRef.current = setInterval(() => {
+        setSelectedIndex(prev => (prev + 1) % photos.length);
+      }, 3000);
+    }
+    return () => clearInterval(slideshowRef.current);
+  }, [isSlideshow, photos.length]);
+
+  const nextPhoto = useCallback(() => {
+    setSelectedIndex(prev => (prev + 1) % photos.length);
+  }, [photos.length]);
+
+  const prevPhoto = useCallback(() => {
+    setSelectedIndex(prev => (prev - 1 + photos.length) % photos.length);
+  }, [photos.length]);
+
+  // Multi-image upload with progress (up to 130 images, batch processing)
   const handleFileUpload = async (e) => {
-    const files = Array.from(e.target.files).slice(0, 10); // Max 10
+    const files = Array.from(e.target.files).slice(0, 130);
     if (!files.length) return;
     setUploading(true);
+    setUploadProgress({ current: 0, total: files.length });
     let errorOccurred = false;
-    try {
-      await Promise.all(files.map(async (file) => {
+
+    // Process in batches of 10 to avoid overwhelming network
+    const batchSize = 10;
+    for (let i = 0; i < files.length; i += batchSize) {
+      const batch = files.slice(i, i + batchSize);
+      await Promise.all(batch.map(async (file) => {
         try {
           const url = await uploadToCloudinary(file);
           await addDoc(collection(db, "secret_gallery"), {
             url,
             createdAt: serverTimestamp()
           });
-        } catch (err) {
-          errorOccurred = true;
-        }
+        } catch { errorOccurred = true; }
+        finally { setUploadProgress(prev => ({ ...prev, current: prev.current + 1 })); }
       }));
-      if (errorOccurred) alert("Some images failed to upload.");
-    } catch (err) {
-      alert("Upload failed!");
     }
+    if (errorOccurred) alert("Some images failed to upload.");
     setUploading(false);
-    e.target.value = null; // Reset file input
+    setUploadProgress({ current: 0, total: 0 });
+    e.target.value = null;
   };
 
   return (
     <div className="min-h-screen bg-rose-50 p-6 pb-32">
       <div className="max-w-4xl mx-auto">
-        <div className="flex justify-between items-center mb-8"><div><h2 className="text-3xl font-serif text-rose-800">Our Secret Gallery 🔒</h2><p className="text-gray-500">Only for our eyes.</p></div><button onClick={onLock} className="flex items-center gap-2 bg-rose-100 text-rose-600 px-4 py-2 rounded-full hover:bg-rose-200 transition-colors"><Lock size={16} /> Lock Space</button></div>
-        <div className="mb-10"><label className="flex flex-col items-center justify-center w-full h-32 border-2 border-rose-300 border-dashed rounded-2xl cursor-pointer bg-rose-50 hover:bg-rose-100 transition-colors"><div className="flex flex-col items-center justify-center pt-5 pb-6"><Upload className="w-8 h-8 text-rose-400 mb-2" /><p className="text-sm text-gray-500"><span className="font-semibold">Click to upload</span> your photo(s)</p></div><input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} multiple disabled={uploading} /></label></div>
-        {photos.length === 0 ? (<div className="text-center py-10 opacity-50"><ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" /><p>No secret photos yet. Upload one!</p></div>) : (<div className="grid grid-cols-2 md:grid-cols-3 gap-4">{photos.map((img) => (<div key={img.id} className="aspect-square rounded-xl overflow-hidden shadow-md bg-white p-2"><img src={img.url} alt="Secret" className="w-full h-full object-cover rounded-lg" /></div>))}</div>)}
+        {/* Header */}
+        <div className="flex justify-between items-center mb-8">
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="p-2 bg-white rounded-full shadow-md hover:bg-rose-50 transition-colors">
+              <ChevronLeft size={24} className="text-rose-600" />
+            </button>
+            <div>
+              <h2 className="text-3xl font-serif text-rose-800">Secret Photos 📸</h2>
+              <p className="text-gray-500">Only for our eyes.</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Photo Count */}
+        <div className="mb-6 inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-rose-100">
+          <ImageIcon size={18} className="text-rose-500" />
+          <span className="text-rose-600 font-bold">{photos.length}</span>
+          <span className="text-gray-500">secret memories</span>
+        </div>
+
+        {/* Upload Area */}
+        <div className="mb-10">
+          <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-rose-300 border-dashed rounded-2xl cursor-pointer bg-rose-50 hover:bg-rose-100 transition-colors">
+            <div className="flex flex-col items-center justify-center pt-5 pb-6">
+              {uploading ? (
+                <>
+                  <RotateCcw className="w-8 h-8 text-rose-400 mb-2 animate-spin" />
+                  <p className="text-sm text-rose-600 font-medium">Uploading {uploadProgress.current}/{uploadProgress.total}...</p>
+                </>
+              ) : (
+                <>
+                  <Upload className="w-8 h-8 text-rose-400 mb-2" />
+                  <p className="text-sm text-gray-500"><span className="font-semibold">Click to upload</span> your photo(s)</p>
+                </>
+              )}
+            </div>
+            <input type="file" className="hidden" accept="image/*" onChange={handleFileUpload} multiple disabled={uploading} />
+          </label>
+        </div>
+
+        {/* Photo Grid */}
+        {photos.length === 0 ? (
+          <div className="text-center py-10 opacity-50">
+            <ImageIcon className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+            <p>No secret photos yet. Upload one!</p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            {photos.map((img, index) => (
+              <div
+                key={img.id}
+                className="group relative aspect-square rounded-xl overflow-hidden shadow-md bg-white p-2 cursor-pointer hover:shadow-lg transition-shadow"
+                onClick={() => { setSelectedIndex(index); setIsSlideshow(false); }}
+              >
+                <img src={img.url} alt="Secret" className="w-full h-full object-cover rounded-lg group-hover:scale-105 transition-transform duration-500" loading="lazy" />
+              </div>
+            ))}
+          </div>
+        )}
       </div>
+
+      {/* Lightbox Modal */}
+      {selectedIndex !== null && photos[selectedIndex] && (
+        <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex items-center justify-center animate-fade-in">
+          <button onClick={() => { setSelectedIndex(null); setIsSlideshow(false); }} className="absolute top-4 right-4 text-white p-2 z-50 hover:bg-white/10 rounded-full">
+            <X size={32} />
+          </button>
+          <div className="absolute top-4 left-4 text-white/70 text-sm font-medium z-50">
+            {selectedIndex + 1} / {photos.length}
+          </div>
+          <img src={photos[selectedIndex].url} alt="Secret Photo" className="max-h-[85vh] max-w-full object-contain rounded-lg animate-zoom-in" />
+          <button onClick={(e) => { e.stopPropagation(); prevPhoto(); }} className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 text-white p-3 rounded-full hover:bg-white/20 transition-colors">
+            <ChevronLeft size={28} />
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); nextPhoto(); }} className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 text-white p-3 rounded-full hover:bg-white/20 transition-colors">
+            <ChevronRight size={28} />
+          </button>
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white/10 backdrop-blur-md border border-white/20 px-6 py-3 rounded-full flex items-center gap-6 z-50">
+            <button onClick={() => setIsSlideshow(!isSlideshow)} className="flex items-center gap-2 text-white font-medium hover:text-rose-300 transition-colors">
+              {isSlideshow ? <Pause size={20} /> : <Play size={20} />}
+              {isSlideshow ? 'Pause' : 'Slideshow'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <style>{`
+        @keyframes zoom-in { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .animate-zoom-in { animation: zoom-in 0.3s ease-out forwards; }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+        .animate-fade-in { animation: fade-in 0.3s ease-out forwards; }
+      `}</style>
     </div>
   );
+};
+
+// --- Love Talks Component (Private Chat with Auto-Delete) ---
+const LoveTalks = ({ onBack, userName }) => {
+  const [messages, setMessages] = useState([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
+  const [viewingImage, setViewingImage] = useState(null);
+  const [otherTyping, setOtherTyping] = useState(false);
+  const messagesEndRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+
+  // Normalize username for comparison
+  const normalizeUser = (name) => name?.toLowerCase().replace(/\s+/g, '') || '';
+  const myNormalizedName = normalizeUser(userName);
+
+  // Fetch messages in real-time & auto-delete expired ones
+  useEffect(() => {
+    const q = query(collection(db, "secret_chat"), orderBy("createdAt", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const now = new Date();
+      const msgs = [];
+      snapshot.docs.forEach(docSnap => {
+        const data = docSnap.data();
+        const expiresAt = data.expiresAt?.toDate?.();
+        // Delete expired messages
+        if (expiresAt && expiresAt < now) {
+          deleteDoc(doc(db, "secret_chat", docSnap.id));
+        } else {
+          msgs.push({ id: docSnap.id, ...data });
+        }
+      });
+      setMessages(msgs);
+      setLoading(false);
+
+      // Mark messages as seen that are from others
+      msgs.forEach(async (m) => {
+        const msgSender = normalizeUser(m.sender);
+        if (msgSender !== myNormalizedName && !m.seen) {
+          try { await updateDoc(doc(db, "secret_chat", m.id), { seen: true }); } catch { }
+        }
+      });
+    });
+    return () => unsubscribe();
+  }, [myNormalizedName]);
+
+  // Listen for typing status
+  useEffect(() => {
+    const typingRef = doc(db, "secret_chat_typing", "status");
+    const unsubscribe = onSnapshot(typingRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        const typingUser = normalizeUser(data.user);
+        const typingTime = data.timestamp?.toDate?.();
+        const now = new Date();
+        if (typingUser && typingUser !== myNormalizedName && typingTime && (now - typingTime) < 3000) {
+          setOtherTyping(true);
+        } else {
+          setOtherTyping(false);
+        }
+      }
+    });
+    return () => unsubscribe();
+  }, [myNormalizedName]);
+
+  // Cleanup interval for expired messages
+  useEffect(() => {
+    const cleanup = setInterval(async () => {
+      const now = new Date();
+      messages.forEach(async (msg) => {
+        const expiresAt = msg.expiresAt?.toDate?.();
+        if (expiresAt && expiresAt < now) {
+          try { await deleteDoc(doc(db, "secret_chat", msg.id)); } catch { }
+        }
+      });
+    }, 30000); // Check every 30 seconds
+    return () => clearInterval(cleanup);
+  }, [messages]);
+
+  // Scroll to bottom on new message
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, otherTyping]);
+
+  // Update typing status
+  const updateTypingStatus = async () => {
+    try {
+      await setDoc(doc(db, "secret_chat_typing", "status"), { user: userName, timestamp: serverTimestamp() });
+    } catch { }
+  };
+
+  // Handle input change with typing indicator
+  const handleInputChange = (e) => {
+    setNewMessage(e.target.value);
+    updateTypingStatus();
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    typingTimeoutRef.current = setTimeout(async () => {
+      try { await setDoc(doc(db, "secret_chat_typing", "status"), { user: "", timestamp: serverTimestamp() }); } catch { }
+    }, 2000);
+  };
+
+  // Send text message
+  const sendMessage = async (e) => {
+    e.preventDefault();
+    if (!newMessage.trim()) return;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + 6 * 60 * 60 * 1000); // 6 hours
+    try {
+      await addDoc(collection(db, "secret_chat"), {
+        text: newMessage,
+        imageUrl: null,
+        isPhoto: false,
+        sender: userName,
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAt,
+        seen: false
+      });
+      setNewMessage('');
+      // Clear typing status
+      await setDoc(doc(db, "secret_chat_typing", "status"), { user: "", timestamp: serverTimestamp() });
+    } catch { alert('Failed to send message'); }
+  };
+
+  // Send photo message
+  const sendPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 1 * 60 * 1000); // 1 minute
+      await addDoc(collection(db, "secret_chat"), {
+        text: null,
+        imageUrl: url,
+        isPhoto: true,
+        sender: userName,
+        createdAt: serverTimestamp(),
+        expiresAt: expiresAt,
+        seen: false
+      });
+    } catch { alert('Failed to send photo'); }
+    setUploading(false);
+    e.target.value = null;
+  };
+
+  // Delete single message
+  const deleteMessage = async (id) => {
+    try { await deleteDoc(doc(db, "secret_chat", id)); }
+    catch { alert('Failed to delete'); }
+  };
+
+  // Clear all chat
+  const clearAllChat = async () => {
+    if (!window.confirm("Delete ALL messages? This cannot be undone!")) return;
+    try {
+      const batch = messages.map(msg => deleteDoc(doc(db, "secret_chat", msg.id)));
+      await Promise.all(batch);
+    } catch { alert('Failed to clear chat'); }
+  };
+
+  // Get remaining time for message
+  const getRemainingTime = (expiresAt) => {
+    if (!expiresAt?.toDate) return '';
+    const now = new Date();
+    const exp = expiresAt.toDate();
+    const diff = exp - now;
+    if (diff <= 0) return 'Expiring...';
+    const mins = Math.floor(diff / 60000);
+    const hrs = Math.floor(mins / 60);
+    if (hrs > 0) return `${hrs}h ${mins % 60}m`;
+    const secs = Math.floor((diff % 60000) / 1000);
+    if (mins > 0) return `${mins}m ${secs}s`;
+    return `${secs}s`;
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-purple-50 via-pink-50 to-rose-50 flex flex-col">
+      {/* Header */}
+      <div className="sticky top-0 z-40 bg-white/90 backdrop-blur-md shadow-sm px-4 py-3 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <button onClick={onBack} className="p-2 bg-rose-50 rounded-full hover:bg-rose-100 transition-colors">
+            <ChevronLeft size={24} className="text-rose-600" />
+          </button>
+          <div>
+            <h2 className="text-xl font-serif text-rose-800 font-bold">💬 Love Talks</h2>
+            <p className="text-xs text-gray-400">
+              {otherTyping ? <span className="text-rose-500 animate-pulse">typing...</span> : 'Photos: 1min • Texts: 6hrs'}
+            </p>
+          </div>
+        </div>
+        <button onClick={clearAllChat} className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-colors" title="Clear All">
+          <Trash2 size={20} />
+        </button>
+      </div>
+
+      {/* Messages Container */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-3">
+        {loading ? (
+          <div className="space-y-4 pt-10">
+            {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-3/4" />)}
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-60 text-gray-400">
+            <Heart size={48} className="mb-3 text-rose-200" />
+            <p className="text-center">No messages yet.<br />Start a secret convo! 🤫</p>
+          </div>
+        ) : (
+          messages.map((msg) => {
+            // Check if current user sent this message
+            const isMe = normalizeUser(msg.sender) === myNormalizedName;
+            const remaining = getRemainingTime(msg.expiresAt);
+            return (
+              <div key={msg.id} className={`flex ${isMe ? 'justify-end' : 'justify-start'} group`}>
+                <div className={`relative max-w-[80%] px-4 py-3 rounded-2xl shadow-sm ${isMe ? 'bg-gradient-to-br from-rose-500 to-pink-500 text-white rounded-br-sm' : 'bg-white text-gray-800 rounded-bl-sm border border-gray-100'}`}>
+                  {msg.isPhoto && msg.imageUrl ? (
+                    <div className="relative">
+                      <img
+                        src={msg.imageUrl}
+                        alt="Secret"
+                        className="max-w-full rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+                        style={{ maxHeight: '200px' }}
+                        onClick={() => setViewingImage(msg.imageUrl)}
+                      />
+                      <div className={`absolute top-2 right-2 px-2 py-1 rounded-full text-xs font-bold ${isMe ? 'bg-white/30 text-white' : 'bg-red-100 text-red-600'}`}>
+                        ⏱ {remaining}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm leading-relaxed">{msg.text}</p>
+                  )}
+                  <div className={`flex items-center justify-between gap-3 mt-2 ${isMe ? 'text-rose-200' : 'text-gray-400'}`}>
+                    <span className="text-[10px]">
+                      {msg.sender} • {msg.createdAt?.toDate?.()?.toLocaleTimeString?.([], { hour: '2-digit', minute: '2-digit' }) || 'now'}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px]">⏱ {remaining}</span>
+                      {isMe && (
+                        <span className="text-[10px] ml-1">
+                          {msg.seen ? <span title="Seen" className="text-blue-300">✓✓</span> : <span title="Sent" className="opacity-60">✓</span>}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Delete button - only for own messages */}
+                  {isMe && (
+                    <button
+                      onClick={() => deleteMessage(msg.id)}
+                      className="absolute -top-2 -left-2 opacity-0 group-hover:opacity-100 p-1.5 bg-red-500 text-white rounded-full shadow-lg hover:bg-red-600 transition-all transform hover:scale-110"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })
+        )}
+        {/* Typing indicator bubble */}
+        {otherTyping && (
+          <div className="flex justify-start">
+            <div className="bg-white text-gray-500 px-4 py-3 rounded-2xl rounded-bl-sm border border-gray-100 shadow-sm">
+              <div className="flex gap-1">
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></span>
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></span>
+                <span className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></span>
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </div>
+
+      {/* Input Area */}
+      <div className="sticky bottom-0 bg-white/95 backdrop-blur-md border-t border-gray-100 p-4 pb-8">
+        <form onSubmit={sendMessage} className="flex items-center gap-2">
+          {/* Photo Button */}
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+            className="p-3 bg-purple-100 text-purple-600 rounded-full hover:bg-purple-200 transition-colors disabled:opacity-50"
+          >
+            {uploading ? <RotateCcw size={20} className="animate-spin" /> : <ImageIcon size={20} />}
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="image/*"
+            onChange={sendPhoto}
+          />
+
+          {/* Text Input */}
+          <input
+            type="text"
+            value={newMessage}
+            onChange={handleInputChange}
+            placeholder="Type a secret message... 🤫"
+            className="flex-1 px-5 py-3 rounded-full bg-gray-50 border-2 border-gray-100 focus:border-rose-300 focus:outline-none text-gray-700 placeholder-gray-400"
+          />
+
+          {/* Send Button */}
+          <button
+            type="submit"
+            className="p-3 bg-rose-500 text-white rounded-full font-bold hover:bg-rose-600 transition-colors shadow-lg disabled:opacity-50"
+            disabled={!newMessage.trim()}
+          >
+            <ArrowRight size={20} />
+          </button>
+        </form>
+        <p className="text-center text-xs text-gray-400 mt-2">📸 Photos vanish in 1 min • 💬 Texts in 6 hrs</p>
+      </div>
+
+      {/* Image Viewer Modal */}
+      {viewingImage && (
+        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center" onClick={() => setViewingImage(null)}>
+          <button className="absolute top-4 right-4 text-white p-2 hover:bg-white/10 rounded-full">
+            <X size={32} />
+          </button>
+          <img src={viewingImage} alt="Secret" className="max-h-[90vh] max-w-full object-contain" />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// --- Secret Space Main Container (Section Chooser) ---
+const SecretSpace = ({ onLock, userName }) => {
+  const [activeSection, setActiveSection] = useState(null); // null = chooser, 'photos', 'chat'
+
+  // Section Chooser View
+  if (!activeSection) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-rose-100 via-pink-50 to-purple-100 flex flex-col items-center justify-center p-6">
+        {/* Background decorations */}
+        <div className="absolute top-0 left-0 w-64 h-64 bg-rose-300/20 rounded-full blur-3xl"></div>
+        <div className="absolute bottom-0 right-0 w-80 h-80 bg-purple-300/20 rounded-full blur-3xl"></div>
+
+        <div className="relative z-10 text-center mb-12 animate-fade-in-up">
+          <div className="w-20 h-20 bg-white rounded-full flex items-center justify-center mx-auto mb-6 shadow-xl">
+            <Lock className="w-10 h-10 text-rose-500" />
+          </div>
+          <h1 className="text-4xl font-serif text-rose-800 mb-3">Secret Space 🔐</h1>
+          <p className="text-gray-500">Choose what you want to explore...</p>
+        </div>
+
+        <div className="relative z-10 grid gap-6 max-w-md w-full">
+          {/* Photos Option */}
+          <button
+            onClick={() => setActiveSection('photos')}
+            className="group bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/50 hover:shadow-2xl hover:scale-[1.02] transition-all text-left"
+          >
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-rose-400 to-pink-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <ImageIcon size={32} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-serif text-gray-800 mb-1">Secret Photos</h3>
+                <p className="text-gray-500 text-sm">Our private gallery • Forever saved</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-rose-500 font-medium">
+              <span>Open Gallery</span>
+              <ChevronRight size={20} className="ml-2 group-hover:translate-x-2 transition-transform" />
+            </div>
+          </button>
+
+          {/* Chat Option */}
+          <button
+            onClick={() => setActiveSection('chat')}
+            className="group bg-white/80 backdrop-blur-md rounded-3xl p-8 shadow-xl border border-white/50 hover:shadow-2xl hover:scale-[1.02] transition-all text-left"
+          >
+            <div className="flex items-center gap-6">
+              <div className="w-16 h-16 bg-gradient-to-br from-purple-400 to-indigo-500 rounded-2xl flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
+                <Mail size={32} className="text-white" />
+              </div>
+              <div>
+                <h3 className="text-2xl font-serif text-gray-800 mb-1">Love Talks</h3>
+                <p className="text-gray-500 text-sm">Private chat • Auto-deleting messages</p>
+              </div>
+            </div>
+            <div className="mt-4 flex items-center text-purple-500 font-medium">
+              <span>Start Chatting</span>
+              <ChevronRight size={20} className="ml-2 group-hover:translate-x-2 transition-transform" />
+            </div>
+          </button>
+        </div>
+
+        {/* Lock Button */}
+        <button
+          onClick={onLock}
+          className="relative z-10 mt-12 flex items-center gap-2 bg-white/60 backdrop-blur-sm text-gray-600 px-6 py-3 rounded-full hover:bg-white/80 transition-colors shadow-md"
+        >
+          <Lock size={16} /> Lock & Exit
+        </button>
+      </div>
+    );
+  }
+
+  // Render active section
+  if (activeSection === 'photos') {
+    return <SecretPhotos onBack={() => setActiveSection(null)} />;
+  }
+
+  if (activeSection === 'chat') {
+    return <LoveTalks onBack={() => setActiveSection(null)} userName={userName} />;
+  }
+
+  return null;
 };
 
 // --- New Bucket List Component ---
@@ -1285,7 +2058,7 @@ const BucketList = () => {
 };
 
 // --- World Container (Main Logic) ---
-const World = ({ onBackHome }) => {
+const World = ({ onBackHome, userName }) => {
   const [activeTab, setActiveTab] = useState('journey');
   const [isSecretUnlocked, setIsSecretUnlocked] = useState(false);
   const [isSecretModalOpen, setIsSecretModalOpen] = useState(false);
@@ -1326,10 +2099,11 @@ const World = ({ onBackHome }) => {
         {activeTab === 'journey' && <Journey />}
         {activeTab === 'gallery' && <Gallery />}
         {activeTab === 'playlist' && <PlaylistView onPlaySong={playSongFromList} onShufflePlay={handleShufflePlay} />}
+
         {activeTab === 'why-love' && <WhyILoveYou />}
         {activeTab === 'dreams' && <BucketList />}
         {activeTab === 'letter' && <Letter />}
-        {activeTab === 'secret' && <SecretSpace onLock={() => { setIsSecretUnlocked(false); setActiveTab('journey'); }} />}
+        {activeTab === 'secret' && <SecretSpace onLock={() => { setIsSecretUnlocked(false); setActiveTab('journey'); }} userName={userName} />}
       </main>
 
       {/* Only show MusicPlayer if playing or full screen, and not paused with bar closed */}
@@ -1352,7 +2126,7 @@ const WorldNavbar = ({ activeTab, onTabChange, onHomeClick }) => {
     { id: 'playlist', label: 'Playlist', icon: Music },
     { id: 'dreams', label: 'Our Dreams', icon: Star },
     { id: 'why-love', label: 'Why I Love You', icon: Heart },
-    { id: 'letter', label: 'Letter', icon: Mail },
+    { id: 'letter', label: 'Letter', icon: KeyRound },
     { id: 'secret', label: 'Secret Space', icon: Lock },
   ];
 
@@ -1430,9 +2204,15 @@ const WorldNavbar = ({ activeTab, onTabChange, onHomeClick }) => {
               })}
             </div>
 
-            <div className="absolute bottom-8 left-6 right-6">
+            <div className="absolute bottom-8 left-6 right-6 space-y-3">
               <button onClick={onHomeClick} className="w-full py-4 border-2 border-rose-100 text-rose-600 font-bold rounded-2xl hover:bg-rose-50 transition-colors flex items-center justify-center gap-2">
                 <Home size={20} /> Back to Home
+              </button>
+              <button
+                onClick={async () => { await signOut(auth); window.location.reload(); }}
+                className="w-full py-3 bg-gray-100 text-gray-600 font-medium rounded-2xl hover:bg-red-50 hover:text-red-600 transition-colors flex items-center justify-center gap-2"
+              >
+                <ArrowRight size={18} className="rotate-180" /> Logout
               </button>
             </div>
           </div>
@@ -1605,7 +2385,7 @@ export default function App() {
       {currentStep === 'loading' && <LoadingScreen onComplete={() => setCurrentStep('login')} />}
       {currentStep === 'login' && <LoginPage onLogin={(name) => { setUserName(name); setCurrentStep('landing'); }} />}
       {currentStep === 'landing' && <LandingPage userName={userName} onEnterWorld={() => setCurrentStep('world')} />}
-      {currentStep === 'world' && <World onBackHome={() => setCurrentStep('landing')} />}
+      {currentStep === 'world' && <World onBackHome={() => setCurrentStep('landing')} userName={userName} />}
       <style>{`.scrollbar-hide::-webkit-scrollbar { display: none; } .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; } @keyframes float { 0% { transform: translateY(0) scale(1); opacity: 0; } 50% { opacity: 0.6; } 100% { transform: translateY(-100px) scale(1.2); opacity: 0; } } .animate-float { animation: float 10s infinite ease-in; } .animate-fade-in-up { animation: fadeInUp 0.8s ease-out; } @keyframes fadeInUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }`}</style>
     </div>
   );
