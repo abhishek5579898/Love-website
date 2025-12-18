@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
-import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { auth, db, storage } from './firebase';
 
@@ -17,43 +17,321 @@ import {
 // Placeholders - You can replace these with your own links manually if you wish, 
 // OR use the upload feature to add them securely to the database.
 const COUPLE_PHOTO_URL = "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?q=80&w=687&auto=format&fit=crop";
-const ABOUT_US_PHOTO_URL = "https://images.unsplash.com/photo-1529333166437-7750a6dd5a70?q=80&w=1469&auto=format&fit=crop";
+import AboutUsPhoto from './assets/about/HomePage.jpeg';
+import MeetingPhoto from './assets/about/1st Meeting.jpg';
+import DiwaliPhoto from './assets/about/1st Diwali.jpeg';
+import ProposePhoto from './assets/about/Propose day.jpg';
+import BirthdayPhoto from './assets/about/my birthday.jpeg';
+import HomeVisitPhoto from './assets/about/You come home.jpg';
+import BikePhoto from './assets/about/Bike breakdown.jpg';
+import LeavingCityPhoto from './assets/about/Leaving city.jpg';
+import YourBirthdayPhoto from './assets/about/Your Birthday.jpg';
+import MyJobPhoto from './assets/about/My job.jpeg';
+import FirstClubPhoto from './assets/about/1st club.jpg';
+import GymProgressPhoto from './assets/about/Gym Progress.jpeg';
+const ABOUT_US_PHOTO_URL = AboutUsPhoto;
 
 // --- Gallery Data ---
 const GALLERY_IMAGES = []; // Starts empty now. Upload photos to fill it!
 
-// --- Music Playlist Data ---
-// --- Music Playlist Data ---
+// --- Music Playlist Data - Import Songs ---
+import BulleyaSong from './assets/songs/Bulleya Ae Dil Hai Mushkil 320 Kbps.mp3';
+import DilDiyanGallanSong from './assets/songs/Dil Diyan Gallan Tiger Zinda Hai 320 Kbps.mp3';
+import GuzarishSong from './assets/songs/Guzarish Ghajini 320 Kbps.mp3';
+import HumkoHumiseSong from './assets/songs/Humko Humise Chura Lo Mohabbatein 320 Kbps.mp3';
+import JugniSong from './assets/songs/Jugni Cocktail 320 Kbps.mp3';
+import LagJaGaleSong from './assets/songs/Lag Ja Gale Bhoomi 320 Kbps.mp3';
+import MainAgarKahoonSong from './assets/songs/Main Agar Kahoon Om Shanti Om 320 Kbps.mp3';
+import NitKhairMangaSong from './assets/songs/Nit Khair Manga Raid 320 Kbps.mp3';
+import PeeLoonSong from './assets/songs/Pee Loon Once Upon A Time In Mumbaai 320 Kbps.mp3';
+import SajdaaSong from './assets/songs/Sajdaa (PenduJatt.Com.Se) (2).mp3';
+import SanuEkPalSong from './assets/songs/Sanu Ek Pal Chain Raid 320 Kbps.mp3';
+import TereLiyeSong from './assets/songs/Tere Liye Prince 320 Kbps.mp3';
+import TumAgarSong from './assets/songs/Tum Agar Saath Dene Ka Vada Karo Hamraaz 320 Kbps.mp3';
+
+// --- Import Cover Images ---
+import BulleyaCover from './assets/covers/Bulleya.jpg.jpg';
+import DilDiyanGallanCover from './assets/covers/Dil Diyan Gallan.jpg.jpg';
+import GuzarishCover from './assets/covers/Guzarish.jpg.jpg';
+import HumkoHumiseCover from './assets/covers/Humko Humise Chura Lo.jpg.jpeg';
+import JugniCover from './assets/covers/Jugni.jpg.jpg';
+import LagJaGaleCover from './assets/covers/Lag Ja Gale.jpg.jpg';
+import MainAgarKahoonCover from './assets/covers/Main Agar Kahoon.jpg.jpg';
+import NitKhairMangaCover from './assets/covers/Nit Khair Manga.jpg.jpg';
+import PeeLoonCover from './assets/covers/Pee Loon.jpg.jpg';
+import SajdaaCover from './assets/covers/Sajdaa.jpg.jpg';
+import SanuEkPalCover from './assets/covers/Sanu Ek Pal Chain.jpg.jpeg';
+import TereLiyeCover from './assets/covers/Tere Liye.jpg.jpg';
+import TumAgarCover from './assets/covers/Tum Agar Saath.jpg.jpg';
+
+// Songs sorted alphabetically
 const SONGS_DATA = [
-  { id: 1, title: "Perfect", artist: "Ed Sheeran", cover: "https://images.unsplash.com/photo-1518609878373-06d740f60d8b?q=80&w=1000", audioUrl: "" /* Paste Audio URL */ },
-  { id: 2, title: "All of Me", artist: "John Legend", cover: "https://images.unsplash.com/photo-1514525253440-b393452e8d26?q=80&w=1000", audioUrl: "" },
-  { id: 3, title: "A Thousand Years", artist: "Christina Perri", cover: "https://images.unsplash.com/photo-1459749411177-d2899036da0b?q=80&w=1000", audioUrl: "" },
-  { id: 4, title: "Just The Way You Are", artist: "Bruno Mars", cover: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?q=80&w=1000", audioUrl: "" },
-  { id: 5, title: "Thinking Out Loud", artist: "Ed Sheeran", cover: "https://images.unsplash.com/photo-1511671782779-c97d3d27a1d4?q=80&w=1000", audioUrl: "" },
-  { id: 6, title: "At My Worst", artist: "Pink Sweat$", cover: "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?q=80&w=1000", audioUrl: "" },
-  { id: 7, title: "Lover", artist: "Taylor Swift", cover: "https://images.unsplash.com/photo-1493225255756-d9584f8606e9?q=80&w=1000", audioUrl: "" },
-  { id: 8, title: "Can't Help Falling in Love", artist: "Elvis Presley", cover: "https://images.unsplash.com/photo-1518173946687-a4c8892bbd9f?q=80&w=1000", audioUrl: "" },
-  { id: 9, title: "Until I Found You", artist: "Stephen Sanchez", cover: "https://images.unsplash.com/photo-1621360841013-c768371e93cf?q=80&w=1000", audioUrl: "" },
-  { id: 10, title: "Tum Hi Ho", artist: "Arijit Singh", cover: "https://images.unsplash.com/photo-1516280440614-6697288d5d38?q=80&w=1000", audioUrl: "" }
+  { id: 1, title: "Bulleya", artist: "Amit Mishra, Shilpa Rao", cover: BulleyaCover, audioUrl: BulleyaSong },
+  { id: 2, title: "Dil Diyan Gallan", artist: "Atif Aslam", cover: DilDiyanGallanCover, audioUrl: DilDiyanGallanSong },
+  { id: 3, title: "Guzarish", artist: "Javed Ali, Sonu Nigam", cover: GuzarishCover, audioUrl: GuzarishSong },
+  { id: 4, title: "Humko Humise Chura Lo", artist: "Lata Mangeshkar, Udit Narayan", cover: HumkoHumiseCover, audioUrl: HumkoHumiseSong },
+  { id: 5, title: "Jugni", artist: "Clinton Cerejo, Vishal Dadlani", cover: JugniCover, audioUrl: JugniSong },
+  { id: 6, title: "Lag Ja Gale", artist: "Rahat Fateh Ali Khan", cover: LagJaGaleCover, audioUrl: LagJaGaleSong },
+  { id: 7, title: "Main Agar Kahoon", artist: "Sonu Nigam, Shreya Ghoshal", cover: MainAgarKahoonCover, audioUrl: MainAgarKahoonSong },
+  { id: 8, title: "Nit Khair Manga", artist: "Rahat Fateh Ali Khan", cover: NitKhairMangaCover, audioUrl: NitKhairMangaSong },
+  { id: 9, title: "Pee Loon", artist: "Mohit Chauhan", cover: PeeLoonCover, audioUrl: PeeLoonSong },
+  { id: 10, title: "Sajdaa", artist: "Rahat Fateh Ali Khan, Richa Sharma", cover: SajdaaCover, audioUrl: SajdaaSong },
+  { id: 11, title: "Sanu Ek Pal Chain", artist: "Rahat Fateh Ali Khan", cover: SanuEkPalCover, audioUrl: SanuEkPalSong },
+  { id: 12, title: "Tere Liye", artist: "Atif Aslam, Shreya Ghoshal", cover: TereLiyeCover, audioUrl: TereLiyeSong },
+  { id: 13, title: "Tum Agar Saath Dene Ka Vada Karo", artist: "Mahendra Kapoor", cover: TumAgarCover, audioUrl: TumAgarSong },
 ];
 
 // --- Journey Data ---
 // --- Journey Data ---
 const JOURNEY_DATA = [
-  { title: "1st Meeting", date: "The beginning", description: "Woh pehli mulakaat...", img: "" /* Paste Image URL here */ },
-  { title: "1st Diwali", date: "Festival of Lights", description: "Hamari pehli Diwali...", img: "" },
-  { title: "Propose Day", date: "Taking the leap", description: "Jab maine finally himmat ki...", img: "" },
-  { title: "My Birthday", date: "Special day", description: "Tumne mere din ko khaas banaya...", img: "" },
-  { title: "You Come Home", date: "Meeting family", description: "Tum mere ghar aayi...", img: "" },
-  { title: "You Accepted", date: "The Yes", description: "The moment you said yes...", img: "" },
-  { title: "The Ring", date: "Tokens of love", description: "Chhota sa gift...", img: "" },
-  { title: "Bike Breakdown", date: "Adventure", description: "Bike kharab ho gayi...", img: "" },
-  { title: "Leaving City", date: "Distance", description: "Greater Noida chhodna...", img: "" },
-  { title: "Gym Progress", date: "Support", description: "Tumhare support se...", img: "" },
-  { title: "Your Birthday", date: "Celebration", description: "Celebrating you...", img: "" },
-  { title: "My Job", date: "New start", description: "Finally got the job...", img: "" },
-  { title: "1st Club", date: "Party", description: "Meri pehli clubbing...", img: "" },
-  { title: "Birthday Again", date: "Another year", description: "Ek aur saal saath...", img: "" }
+  {
+    title: "1st Meeting",
+    date: "The beginning",
+    description: (
+      <>
+        Mujhe aaj bhi yaad hai…<br />
+        main bike par tumse milne aaya tha,<br />
+        aur tum bahar aayi thi mujhe milne.<br /><br />
+        Tumne mujhe dekhte hi soch liya tha —<br />
+        “Iske saath toh relation mein bilkul nahi aana.” 😅😢<br /><br />
+        Par kismat ko kuch aur hi manzoor tha.<br />
+        Hum mile, baatein hui,<br />
+        thoda ghoome, thoda hase,<br />
+        aur bina jaane hi ek dusre ke kareeb aa gaye.<br /><br />
+        Us din shayad sirf ek meeting thi,<br />
+        lekin wahi pal<br />
+        hamari kahani ki shuruaat ban gaya.
+      </>
+    ),
+    img: MeetingPhoto
+  },
+  {
+    title: "1st Diwali",
+    date: "Festival of Lights",
+    description: (
+      <>
+        Haan, photos Diwali ki nahi hain…<br />
+        kyunki tumne photo lene se mana kar diya tha 😅<br />
+        par yaqeen maano,<br />
+        mere dimaag me wo Diwali aaj bhi bilkul clear hai.<br /><br />
+        Tumhara green suit,<br />
+        tumhari chalne ki adaa,<br />
+        aur tumhe dekhte hi mujhe samajh aa gaya tha —<br />
+        iss baar ki Diwali meri life ki best Diwali hone wali hai 💚✨<br /><br />
+        Aur haan…<br />
+        wo hickey 😶‍🌫️<br />
+        usko kaise bhool sakta hoon?<br />
+        Ghar par poora din<br />
+        dara-dara ghoom raha tha 😂
+      </>
+    ),
+    img: DiwaliPhoto
+  },
+  {
+    title: "My Birthday",
+    date: "The Midnight Surprise",
+    description: (
+      <>
+        Mera pehla birthday tumhare saath…<br />
+        aur tum bhool gayi thi 😅<br /><br />
+        Raat ke 2 baje call aaya,<br />
+        “sorry… sorry…” bol rahi thi tum.<br />
+        Aur main?<br />
+        main toh tanhaiyon me, yaadon me hi dooba hua tha…<br />
+        thoda hurt hua tha, sach kahun toh 💔<br /><br />
+        Par phir…<br />
+        jab 2 baje tum aa gayi,<br />
+        sab kuch theek ho gaya.<br />
+        Us ek pal ne<br />
+        saari narazgi mita di.<br /><br />
+        Tab samajh aaya —<br />
+        kabhi kabhi der ho jaati hai,<br />
+        par tumhara aana hi sabse bada gift tha 🎁❤️
+      </>
+    ),
+    img: BirthdayPhoto,
+    imgPos: "object-cover object-center"
+  },
+  {
+    title: "You Come Home",
+    date: "Home Sweet Home",
+    description: (
+      <>
+        Wo din jab tum pehli baar mere ghar aayi…<br />
+        hum saath baithe,<br />
+        movie dekhi, baatein ki,<br />
+        aur waqt ka pata hi nahi chala 🎬✨<br /><br />
+        Sach bolun,<br />
+        pehli baar kisi ladki ko apne ghar laya tha,<br />
+        aur dil thoda nervous bhi tha.<br /><br />
+        Par tumhare saath<br />
+        sab kuch itna natural, itna comfortable lag raha tha…<br />
+        jaise tum hamesha se yahin thi.<br /><br />
+        Bas ek hi hope hai —<br />
+        tumhe bhi accha laga ho,<br />
+        kyunki wo pal<br />
+        meri yaadon me hamesha special rahega ❤️
+      </>
+    ),
+    img: HomeVisitPhoto,
+    imgPos: "object-cover object-center"
+  },
+  {
+    title: "Propose Day",
+    date: "1st January",
+    description: (
+      <>
+        Yaad hai…<br />
+        jab aakhirkaar tumne mera proposal accept kar liya —<br />
+        wo bhi 1 January ko 💫<br /><br />
+        Wo din sirf ek proposal nahi tha,<br />
+        wo ek nayi zindagi ki shuruaat thi.<br />
+        Best day of my life ❤️<br /><br />
+        Aur promise hai,<br />
+        aise hi infinite New Years<br />
+        hum saath-saath celebrate karenge❤️
+      </>
+    ),
+    img: ProposePhoto
+  },
+  {
+    title: "Bike Breakdown",
+    date: "The Unplanned Adventure",
+    description: (
+      <>
+        Yaad hai jab hum bike se ghoom rahe the<br />
+        aur socha tha kahi door chalte hain…<br />
+        par kismat ko kuch aur hi plan tha 😅<br /><br />
+        Pehle toh full photoshoot, hasi-mazaak chala,<br />
+        sab kuch mast lag raha tha.<br />
+        Phir jab pata chala<br />
+        bike sach me kharab ho gayi hai…<br />
+        dono ki halat hi kharab 😂<br /><br />
+        Kitna paidal chale hum,<br />
+        thakaan, tension, aur ek dusre ko dekh kar hasi bhi.<br />
+        Par end me…<br />
+        bike on ho hi gayi 🙏<br />
+        Thank God!<br />
+        Warna shayad ye memory aur bhi lambi ho jaati 😄
+      </>
+    ),
+    img: BikePhoto
+  },
+  {
+    title: "Leaving City",
+    date: "The Hardest Goodbye",
+    description: (
+      <>
+        Ye wo din hai<br />
+        jo kaash kabhi na aata…<br />
+        par aaya bhi toh<br />
+        shayad accha hi tha,<br />
+        tumne bohot kuch seekh liya ❤️<br /><br />
+        Jab tum<br />
+        Greater Noida se Delhi ja rahi thi,<br />
+        pehle kaise saath rahe…<br />
+        aur phir main<br />
+        tumhe itni door bike se chhodne gaya.<br /><br />
+        Sach bolun,<br />
+        main bohot thak gaya tha,<br />
+        soch kar hi kamar me dard badh jaata hai 😅<br />
+        Aur wapas aakar<br />
+        bas tumhare baare me sochta raha…<br />
+        aur emotional hota raha 💔<br /><br />
+        Tabse<br />
+        tum wapas idhar aa hi nahi paayi…
+      </>
+    ),
+    img: LeavingCityPhoto
+  },
+  {
+    title: "Your Birthday",
+    date: "Princess Treatment",
+    description: (
+      <>
+        Ek aisi cheez<br />
+        jo tum kabhi nahi bhool paogi ❤️<br /><br />
+        Bohot soch-samajh kar<br />
+        wo gift diya tha… 😅<br />
+        Tumhare liye sab kuch plan karna,<br />
+        idhar-udhar bhaagna,<br />
+        aur waha tumhare liye khana banana —<br />
+        pure princess treatment 👑<br /><br />
+        Kasam se,<br />
+        kisi aur ke liye itna nahi kiya.<br />
+        Agar kiya hota,<br />
+        toh shayad aaj mera swayamvar chal raha hota 😂
+      </>
+    ),
+    img: YourBirthdayPhoto
+  },
+  {
+    title: "My Job",
+    date: "Turning Point",
+    description: (
+      <>
+        Meri job lagna<br />
+        hamari life ka bohot bada turn tha.<br /><br />
+        Us din humari<br />
+        bohot badi wali ladai chal rahi thi…<br />
+        aur tabhi<br />
+        job ka call aa gaya,<br />
+        joining date aa gayi.<br /><br />
+        Maine tumhe bataya<br />
+        aur bas…<br />
+        ladai the end 😌<br /><br />
+        Sach me,<br />
+        upar wale ne bhi kya timing set ki thi.<br />
+        Ab job ke baad<br />
+        tumhe thoda kam time de paata hoon…<br />
+        par shayad<br />
+        tumhari 11:11 wali wish<br />
+        us din poori ho hi gayi thi ✨❤️
+      </>
+    ),
+    img: MyJobPhoto,
+    imgPos: "object-cover object-top"
+  },
+  {
+    title: "1st Club",
+    date: "Party Night",
+    description: (
+      <>
+        Mera pehla club… wow!<br />
+        City me reh kar bhi<br />
+        first time club gaya —<br />
+        wo bhi apni gf ke saath 💃🕺<br /><br />
+        Zyada khaas kuch nahi tha,<br />
+        par experience bura bhi nahi tha.<br />
+        Tumhare saath dance karna,<br />
+        baithna, hasna, baatein karna…<br />
+        ek club se dusre club.<br /><br />
+        Wo raat<br />
+        yaad rakhne wali raat ban gayi 🌙✨
+      </>
+    ),
+    img: FirstClubPhoto
+  },
+  {
+    title: "Gym Progress",
+    date: "My Motivation",
+    description: (
+      <>
+        Meri gym ki progress<br />
+        sirf tumhari wajah se hai ❤️<br /><br />
+        Tum na hoti,<br />
+        toh gym bhi shayad na hoti.<br />
+        Ye saari muscles pe<br />
+        haq tumhara hi toh hai 💪😌<br /><br />
+        Har rep, har pain,<br />
+        har progress ke peeche<br />
+        tum ho —<br />
+        meri motivation ✨
+      </>
+    ),
+    img: GymProgressPhoto,
+    imgPos: "object-cover object-top"
+  }
 ];
 
 const REASONS_TO_LOVE = [
@@ -209,6 +487,7 @@ const LoadingScreen = ({ onComplete }) => {
 
 
 
+
 const LoginPage = ({ onLogin }) => {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -220,8 +499,14 @@ const LoginPage = ({ onLogin }) => {
     setIsLoading(true);
     setError('');
     try {
-      await signInWithEmailAndPassword(auth, email, password);
-      onLogin(email.split('@')[0]); // Use part of email as name
+      const userCredential = await signInWithEmailAndPassword(auth, email, password);
+      const user = userCredential.user;
+      // Prefer displayName, fallback to first part of email if not set
+      let name = user.displayName;
+      if (!name || name.trim() === "") {
+        name = email.split('@')[0];
+      }
+      onLogin(name);
     } catch (err) {
       console.error(err);
       let msg = "Incorrect email or password.";
@@ -389,11 +674,29 @@ const Gallery = React.memo(() => {
     e.target.value = null; // Reset file input
   };
 
+  // Delete photo from gallery
+  const handleDeletePhoto = async (e, photoId) => {
+    e.stopPropagation();
+    if (!window.confirm("Delete this memory?")) return;
+    try {
+      await deleteDoc(doc(db, "gallery", photoId));
+    } catch (err) {
+      alert("Failed to delete photo.");
+    }
+  };
+
   return (
     <div className="w-full bg-rose-50 min-h-screen p-4 md:p-8 pb-32">
       <div className="text-center mb-10 animate-fade-in-up">
         <h2 className="text-4xl md:text-5xl font-serif text-rose-800 mb-4">Our Beautiful Memories</h2>
         <p className="text-rose-400 italic">Every picture tells a story of us.</p>
+
+        {/* Total Photos Count */}
+        <div className="mt-4 inline-flex items-center gap-2 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm border border-rose-100">
+          <ImageIcon size={18} className="text-rose-500" />
+          <span className="text-rose-600 font-bold">{galleryImages.length}</span>
+          <span className="text-gray-500">memories</span>
+        </div>
 
         <div className="mt-6 flex justify-center">
           <label className="flex items-center gap-2 bg-rose-500 text-white px-6 py-3 rounded-full cursor-pointer hover:bg-rose-600 transition-colors shadow-lg">
@@ -412,6 +715,14 @@ const Gallery = React.memo(() => {
         {galleryImages.map((img, index) => (
           <div key={img.id} className="group relative aspect-square overflow-hidden rounded-2xl cursor-pointer shadow-md bg-white" onClick={() => { setSelectedImageIndex(index); setIsPlaying(false); }}>
             <img src={img.url} alt="Memory" loading="lazy" className="w-full h-full object-cover transform group-hover:scale-110 transition-transform duration-700" />
+            {/* Delete Button */}
+            <button
+              onClick={(e) => handleDeletePhoto(e, img.id)}
+              className="absolute top-2 right-2 p-2 bg-red-500/90 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-300 hover:bg-red-600 shadow-lg z-10"
+              title="Delete photo"
+            >
+              <Trash2 size={16} />
+            </button>
           </div>
         ))}
         {galleryImages.length === 0 && (
@@ -451,57 +762,135 @@ const Gallery = React.memo(() => {
   );
 });
 
-const JourneyEvent = ({ event, index }) => {
+// --- Mobile Premium Journey Event (Timeline Style) ---
+const JourneyEventMobile = ({ event, index, isLast }) => {
   const [isVisible, setIsVisible] = useState(false);
   const domRef = useRef();
+
   useEffect(() => {
-    const observer = new IntersectionObserver(entries => entries.forEach(entry => setIsVisible(entry.isIntersecting)));
+    const observer = new IntersectionObserver(entries => entries.forEach(entry => setIsVisible(entry.isIntersecting)), { threshold: 0.15 });
     if (domRef.current) observer.observe(domRef.current);
     return () => domRef.current && observer.unobserve(domRef.current);
   }, []);
-  const isEven = index % 2 === 0;
+
   return (
-    <div ref={domRef} className={`min-h-[85vh] flex items-center justify-center p-6 transition-opacity duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
-      <div className={`flex flex-col md:flex-row items-center gap-8 md:gap-16 max-w-6xl w-full ${isEven ? '' : 'md:flex-row-reverse'}`}>
-        <div className={`flex-1 w-full transform transition-all duration-1000 delay-300 ${isVisible ? 'translate-x-0' : (isEven ? '-translate-x-20' : 'translate-x-20')}`}>
+    <div ref={domRef} className="relative flex gap-4 pl-2 pb-12">
+      {/* Timeline Line */}
+      {!isLast && (
+        <div className="absolute left-[19px] top-8 bottom-0 w-0.5 bg-gradient-to-b from-rose-300 to-rose-100/50"></div>
+      )}
+
+      {/* Timeline Marker (Heart) */}
+      <div className={`relative z-10 shrink-0 mt-1 transition-all duration-700 delay-100 ${isVisible ? 'scale-100 opacity-100' : 'scale-0 opacity-0'}`}>
+        <div className="w-10 h-10 rounded-full bg-rose-100 border-2 border-rose-300 flex items-center justify-center shadow-md">
+          <Heart size={18} className="text-rose-500 fill-rose-500" />
+        </div>
+      </div>
+
+      {/* Glassmorphic Content Card */}
+      <div className={`flex-1 min-w-0 transform transition-all duration-700 ease-out 
+          ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-10 opacity-0'}`}>
+
+        <div className="bg-white/60 backdrop-blur-xl border border-white/60 p-5 rounded-3xl shadow-[0_8px_30px_rgb(0,0,0,0.04)] hover:shadow-lg transition-shadow">
+          <span className="inline-block px-3 py-1 bg-white text-rose-500 text-[10px] font-bold tracking-widest uppercase rounded-full mb-3 shadow-sm border border-rose-100">
+            {event.date}
+          </span>
+
+          {/* Photo Frame */}
+          <div className="relative mb-4 rotate-1 hover:rotate-0 transition-transform duration-300">
+            <div className="absolute inset-0 bg-gray-200 rounded-2xl transform translate-y-1 translate-x-1"></div>
+            <div className="relative rounded-2xl overflow-hidden shadow-sm aspect-[4/3] bg-white border-4 border-white">
+              {event.img ? (
+                <img src={event.img} alt={event.title} className={`w-full h-full ${event.imgPos || 'object-cover object-center'}`} loading="lazy" />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center bg-rose-50 text-rose-300">
+                  <ImageIcon size={32} />
+                </div>
+              )}
+            </div>
+          </div>
+
+          <h3 className="text-2xl font-serif text-gray-800 mb-2 leading-tight">
+            {event.title}
+          </h3>
+          <div className="text-sm text-gray-600 font-light leading-relaxed">
+            {event.description}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const JourneyEventDesktop = ({ event, index }) => {
+  const [isVisible, setIsVisible] = useState(false);
+  const domRef = useRef();
+
+  useEffect(() => {
+    const observer = new IntersectionObserver(entries => entries.forEach(entry => setIsVisible(entry.isIntersecting)), { threshold: 0.2 });
+    if (domRef.current) observer.observe(domRef.current);
+    return () => domRef.current && observer.unobserve(domRef.current);
+  }, []);
+
+  const isEven = index % 2 === 0;
+
+  return (
+    <div ref={domRef} className={`hidden md:flex min-h-[60vh] items-center justify-center p-8 transition-opacity duration-1000 ${isVisible ? 'opacity-100' : 'opacity-0'}`}>
+      <div className={`flex flex-row items-center gap-16 max-w-6xl w-full ${isEven ? '' : 'flex-row-reverse'}`}>
+        <div className={`flex-1 w-full transform transition-all duration-1000 delay-300 
+            ${isVisible ? 'translate-x-0 opacity-100' : (isEven ? '-translate-x-20 opacity-0' : 'translate-x-20 opacity-0')}`}>
           <div className="relative group rounded-3xl overflow-hidden shadow-2xl border-4 border-white rotate-2 hover:rotate-0 transition-transform bg-white">
             {event.img ? (
-              <img src={event.img} alt={event.title} className="w-full h-auto object-cover max-h-[500px]" />
+              <img src={event.img} alt={event.title} className={`w-full h-auto max-h-[500px] ${event.imgPos || 'object-cover object-center'}`} />
             ) : (
               <div className="w-full h-64 bg-rose-100 flex items-center justify-center text-rose-400">
-                <div className="text-center">
-                  <ImageIcon size={48} className="mx-auto mb-2 opacity-50" />
-                  <p className="text-sm">No Image Added</p>
-                </div>
+                <p>No Image</p>
               </div>
             )}
           </div>
         </div>
-        <div className={`flex-1 text-center md:text-left transform transition-all duration-1000 delay-500 ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
+        <div className={`flex-1 text-left transform transition-all duration-1000 delay-500 
+            ${isVisible ? 'translate-y-0 opacity-100' : 'translate-y-20 opacity-0'}`}>
           <span className="inline-block px-4 py-2 bg-rose-100 text-rose-600 rounded-full text-sm font-bold mb-4">{event.date}</span>
-          <h2 className="text-4xl md:text-6xl font-serif text-rose-800 mb-6">{event.title}</h2>
-          <p className="text-lg md:text-xl text-gray-600 leading-relaxed font-light">{event.description}</p>
+          <h2 className="text-6xl font-serif text-rose-800 mb-6">{event.title}</h2>
+          <div className="text-xl text-gray-600 leading-relaxed font-light">{event.description}</div>
         </div>
       </div>
     </div>
   )
 }
+
 const Journey = React.memo(() => {
   return (
     <div className="w-full bg-gradient-to-b from-rose-50 to-white pb-32">
-      <div className="h-[40vh] flex items-center justify-center bg-rose-50"><h2 className="text-4xl md:text-6xl font-serif text-rose-800 animate-fade-in-up">Our Beautiful Journey ❤️</h2></div>
-      <div>{JOURNEY_DATA.map((event, i) => <JourneyEvent key={i} event={event} index={i} />)}</div>
+      <div className="h-[30vh] md:h-[40vh] flex items-center justify-center bg-rose-50">
+        <h2 className="text-4xl md:text-6xl font-serif text-rose-800 animate-fade-in-up">Our Beautiful Journey ❤️</h2>
+      </div>
+
+      {/* Mobile View (Premium Timeline) */}
+      <div className="md:hidden px-4">
+        <div className="max-w-md mx-auto relative">
+          {JOURNEY_DATA.map((event, i) => (
+            <JourneyEventMobile key={i} event={event} index={i} isLast={i === JOURNEY_DATA.length - 1} />
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop View (Classic Split) */}
+      <div className="hidden md:block">
+        {JOURNEY_DATA.map((event, i) => <JourneyEventDesktop key={i} event={event} index={i} />)}
+      </div>
 
       {/* Updated Fights & Ending Section */}
       <div className="relative py-24 bg-rose-50 text-rose-900">
         <div className="max-w-4xl mx-auto px-6 text-center">
           <CloudLightning className="w-16 h-16 mx-auto mb-6 text-rose-400 animate-pulse" />
           <h2 className="text-4xl font-serif text-rose-800 mb-8">The Storms We Weathered</h2>
-          <p className="text-lg text-gray-600 mb-12">
-            Haan, hum ladte hain. Sometimes a lot. But you know what? That's the best part.
-            Kyunki har ladai ke baad wala pyaar aur bhi gehra hota hai.
-            Fights hoti rahengi, manana chalta rahega, bas tum saath rehna.
-          </p>
+          <div className="text-lg text-gray-600 mb-12">
+            <p className="mb-2">Haan, hum ladte hain. Sometimes a lot. But you know what? That's the best part.</p>
+            <p>Kyunki har ladai ke baad wala pyaar aur bhi gehra hota hai.</p>
+            <p>Fights hoti rahengi, manana chalta rahega, bas tum saath rehna.</p>
+          </div>
 
           <div className="border-t border-rose-200 pt-12 mt-12">
             <Heart className="w-16 h-16 text-rose-500 mx-auto mb-4 animate-bounce" fill="currentColor" />
@@ -1076,7 +1465,7 @@ const WorldNavbar = ({ activeTab, onTabChange, onHomeClick }) => {
   );
 };
 
-import { doc, getDoc } from "firebase/firestore";
+
 
 const SecretSpaceModal = ({ isOpen, onClose, onSuccess }) => {
   const [password, setPassword] = useState('');
@@ -1118,68 +1507,50 @@ const SecretSpaceModal = ({ isOpen, onClose, onSuccess }) => {
   );
 };
 
-const LoveTicketDispenser = () => {
-  const [ticket, setTicket] = useState(null);
-  const [isAnimating, setIsAnimating] = useState(false);
+const MoodCare = () => {
+  const [selectedMood, setSelectedMood] = useState(null);
 
-  const MESSAGES = [
-    "You are my favorite notification 🔔",
-    "Drink some water, cutie! 💧",
-    "I miss you 3000 ❤️",
-    "You look beautiful today (I know it) ✨",
-    "Can I have a hug? 🫂",
-    "Smile, it suits you! 😊",
-    "You are the best thing in my life 🌟",
-    "Thinking of you... always 💭",
-    "You + Me = Perfect 💑",
-    "Send me a selfie? 📸"
+  const MOODS = [
+    { id: 'miss', icon: '🥺', label: 'Missing You', color: 'bg-blue-100 text-blue-600', msg: "Aww, I miss you too! 🫂 Virtual hug sending... 3... 2... 1... *SQUEEZE*! Call me now? ❤️" },
+    { id: 'sad', icon: '😢', label: 'Sad', color: 'bg-indigo-100 text-indigo-600', msg: "Don't be sad panda. 🐼 Remember I'm always with you. Smile for me? Ek baar?" },
+    { id: 'angry', icon: '😡', label: 'Angry', color: 'bg-red-100 text-red-600', msg: "Gussa thook do na cutie! 😤 I'm sorry if I annoyed you. Love you infinitely! ❤️" },
+    { id: 'bored', icon: '🥱', label: 'Bored', color: 'bg-yellow-100 text-yellow-600', msg: "Bored? Let's play a game! Or... you can stare at my photo? 😜" },
+    { id: 'happy', icon: '🥰', label: 'Happy', color: 'bg-green-100 text-green-600', msg: "Yay! Your happiness is my favorite thing! Keep smiling, sunshine! ☀️" },
+    { id: 'tired', icon: '😫', label: 'Tired', color: 'bg-purple-100 text-purple-600', msg: "You worked hard today! 🌟 Time to relax. Lay down, close your eyes, and imagine I'm cuddling you." }
   ];
 
-  const getTicket = () => {
-    if (isAnimating) return;
-    setIsAnimating(true);
-    setTicket(null);
-    setTimeout(() => {
-      const randomMsg = MESSAGES[Math.floor(Math.random() * MESSAGES.length)];
-      setTicket(randomMsg);
-      setIsAnimating(false);
-    }, 600);
-  };
-
   return (
-    <div className="bg-white rounded-3xl p-6 shadow-xl text-center relative overflow-hidden border border-rose-100">
-      <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-rose-200 via-pink-400 to-rose-200"></div>
-      <h3 className="text-2xl font-serif text-rose-800 mb-2">Need some love? 💌</h3>
-      <p className="text-gray-500 text-sm mb-6">Grab a ticket!</p>
-
-      <div className="relative h-24 mb-6 flex items-center justify-center">
-        {/* Ticket Hole */}
-        <div className="absolute top-0 w-32 h-2 bg-gray-200 rounded-full"></div>
-
-        {/* The Ticket */}
-        <div className={`absolute top-0 w-64 bg-yellow-100 border-2 border-yellow-200 p-4 rounded-lg shadow-sm transform transition-all duration-500 ease-out origin-top
-            ${ticket ? 'translate-y-2 opacity-100 rotate-1' : '-translate-y-20 opacity-0 rotate-0'}
-            ${isAnimating ? 'animate-pulse' : ''}
-        `}>
-          <div className="border-2 border-dashed border-yellow-300 p-2 rounded relative">
-            <div className="flex gap-2 justify-center mb-1">
-              <Star size={12} className="text-yellow-500" fill="currentColor" />
-              <Star size={12} className="text-yellow-500" fill="currentColor" />
-              <Star size={12} className="text-yellow-500" fill="currentColor" />
-            </div>
-            <p className="font-handwriting text-rose-600 font-bold text-lg">{ticket || "Printing love..."}</p>
-          </div>
-        </div>
+    <div className="bg-white rounded-3xl p-6 shadow-xl border border-rose-100 relative overflow-hidden">
+      <div className="text-center mb-6">
+        <h3 className="text-2xl font-serif text-rose-800 mb-2">How is my baby feeling? 🩺</h3>
+        <p className="text-gray-500 text-sm">Select your mood for a special dose of love.</p>
       </div>
 
-      <button
-        onClick={getTicket}
-        className="bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold py-3 px-8 rounded-full shadow-lg shadow-rose-500/30 transition-all flex items-center justify-center gap-2 mx-auto"
-        disabled={isAnimating}
-      >
-        {isAnimating ? <RotateCcw className="animate-spin" size={20} /> : <Zap size={20} fill="currentColor" />}
-        {isAnimating ? "Dispensing..." : "Get a Ticket!"}
-      </button>
+      {selectedMood ? (
+        <div className="bg-rose-50 rounded-2xl p-6 text-center animate-fade-in-up">
+          <div className="text-4xl mb-4">{selectedMood.icon}</div>
+          <p className="text-lg font-medium text-rose-700 mb-6 font-serif">"{selectedMood.msg}"</p>
+          <button
+            onClick={() => setSelectedMood(null)}
+            className="bg-white text-rose-500 font-bold py-2 px-6 rounded-full shadow-sm hover:shadow-md transition-all text-sm uppercase tracking-wide"
+          >
+            Check Another Mood
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+          {MOODS.map((mood) => (
+            <button
+              key={mood.id}
+              onClick={() => setSelectedMood(mood)}
+              className={`${mood.color} p-4 rounded-2xl flex flex-col items-center gap-2 hover:scale-105 transition-transform duration-300 shadow-sm`}
+            >
+              <span className="text-2xl">{mood.icon}</span>
+              <span className="font-bold text-sm">{mood.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -1187,20 +1558,39 @@ const LoveTicketDispenser = () => {
 const LandingPage = ({ userName, onEnterWorld }) => {
   const myBirthday = { month: 12, day: 17 }; // Updated: 17 Dec
   const herBirthday = { month: 7, day: 7 };   // Updated: 7 July
+
+  // Secure name display - decoded at runtime to hide from inspect
+  // "Abhishek" = QWJoaXNoZWs=, "Roshni" = Um9zaG5p
+  const getSecureDisplayName = (rawName) => {
+    if (!rawName) return '';
+    const lowerName = rawName.toLowerCase();
+    // Check patterns and return decoded names
+    if (lowerName.includes('abhishek') || lowerName.includes('abhi')) {
+      return atob('QWJoaXNoZWs='); // Abhishek
+    }
+    if (lowerName.includes('rosh') || lowerName.includes('rodhni')) {
+      return atob('Um9zaG5p'); // Roshni
+    }
+    // Fallback to first letter uppercase
+    return rawName.charAt(0).toUpperCase() + rawName.slice(1);
+  };
+
+  const displayName = getSecureDisplayName(userName);
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-pink-50 to-rose-100 overflow-x-hidden relative">
-      <nav className="bg-white/80 backdrop-blur-md p-4 sticky top-0 z-50 shadow-sm"><div className="max-w-4xl mx-auto flex justify-between items-center text-rose-600"><h1 className="font-serif text-xl font-bold">Us ❤️</h1><span className="text-sm font-medium bg-pink-100 px-3 py-1 rounded-full">Hi, {userName}</span></div></nav>
+      <nav className="bg-white/80 backdrop-blur-md p-4 sticky top-0 z-50 shadow-sm"><div className="max-w-4xl mx-auto flex justify-between items-center text-rose-600"><h1 className="font-serif text-xl font-bold">Us ❤️</h1><span className="text-sm font-medium bg-pink-100 px-3 py-1 rounded-full">Hi, {displayName}</span></div></nav>
       <div className="max-w-3xl mx-auto px-6 py-10 space-y-12 pb-32">
         <section className="text-center space-y-4 animate-fade-in-up"><h1 className="text-4xl md:text-6xl font-serif text-rose-800">Welcome Home, Love</h1><p className="text-gray-600 max-w-md mx-auto leading-relaxed">I made this little corner of the internet just for us. Everything here is a memory, a promise, and a piece of my heart.</p></section>
-        <section className="bg-white rounded-3xl shadow-xl overflow-hidden transform hover:-translate-y-1 transition-transform duration-500"><div className="md:flex"><div className="md:w-1/2 h-64 md:h-auto relative"><img src={ABOUT_US_PHOTO_URL} alt="Couple Moment" className="absolute inset-0 w-full h-full object-cover" /></div><div className="p-8 md:w-1/2 flex flex-col justify-center"><h2 className="hidden md:block text-3xl font-serif text-rose-800 mb-4">About Us</h2><p className="text-gray-600 leading-relaxed mb-4">From the first "Hello" to every "I love you" in between, our journey has been my favorite story.</p><div className="flex gap-2"><span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-full text-xs font-medium">#Love</span><span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-full text-xs font-medium">#Forever</span></div></div></div></section>
+        <section className="bg-white rounded-3xl shadow-xl overflow-hidden transform hover:-translate-y-1 transition-transform duration-500"><div className="md:flex"><div className="md:w-1/2 h-64 md:h-auto relative"><img src={ABOUT_US_PHOTO_URL} alt="Couple Moment" className="absolute inset-0 w-full h-full object-cover" /></div><div className="p-8 md:w-1/2 flex flex-col justify-center"><h2 className="hidden md:block text-3xl font-serif text-rose-800 mb-4">About Us</h2><div className="text-gray-600 leading-relaxed mb-4"><p className="mb-2">Hum koi perfect couple nahi hain,<br />lekin ek dusre ke liye perfect hain.</p><p className="mb-2">Hamari kahani kisi fairy tale jaisi shuru nahi hui,<br />par aaj har din ek khubsurat kahani ban chuki hai.</p><p>Ye sirf ek website nahi,<br />ye hamare pyaar ka ek chhota sa hissa hai,<br />jahan har photo, har line aur har feeling<br />sirf ek hi cheez ke liye hai…<br />tum ❤️</p></div><div className="flex gap-2"><span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-full text-xs font-medium">#Love</span><span className="bg-pink-100 text-pink-600 px-3 py-1 rounded-full text-xs font-medium">#Forever</span></div></div></div></section>
 
         <section className="space-y-6">
           <div className="grid md:grid-cols-2 gap-4"><Countdown date={myBirthday} title="My Birthday" /><Countdown date={herBirthday} title="Your Birthday" /></div>
         </section>
 
-        {/* Love Ticket Dispenser */}
+        {/* Mood Care Station */}
         <section className="animate-fade-in-up delay-200">
-          <LoveTicketDispenser />
+          <MoodCare />
         </section>
       </div>
       <div className="fixed bottom-8 left-0 right-0 flex justify-center z-40 px-4"><button className="group relative bg-rose-600 hover:bg-rose-700 text-white text-lg font-medium py-4 px-12 rounded-full shadow-2xl hover:shadow-rose-500/50 transition-all duration-300 transform hover:scale-105 overflow-hidden" onClick={onEnterWorld}><div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer"></div><span className="flex items-center gap-2">Enter to Our World <ArrowRight size={20} /></span></button></div>
@@ -1212,6 +1602,22 @@ const LandingPage = ({ userName, onEnterWorld }) => {
 export default function App() {
   const [currentStep, setCurrentStep] = useState('loading');
   const [userName, setUserName] = useState('');
+
+  // Listen for auth state changes to auto-fill name if user is already logged in
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (user) {
+        let name = user.displayName;
+        if (!name || name.trim() === "") {
+          name = user.email ? user.email.split('@')[0] : "User";
+        }
+        setUserName(name);
+        setCurrentStep('landing');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
   return (
     <div className="font-sans text-gray-800 antialiased">
       {currentStep === 'loading' && <LoadingScreen onComplete={() => setCurrentStep('login')} />}
