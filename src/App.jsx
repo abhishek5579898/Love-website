@@ -9,8 +9,9 @@ import {
   Calendar, ArrowRight, Home, Map, Mail, Star, Menu, X, KeyRound,
   CloudLightning, Zap, ChevronLeft, ChevronRight, Pause, Gauge, Maximize2,
   Shuffle, Repeat, SkipBack, SkipForward, ChevronDown, ListMusic, Mic2,
-  Upload, Plus, Check, RotateCcw, Unlock, Trash2
+  Upload, Plus, Check, RotateCcw, Unlock, Trash2, Tv
 } from 'lucide-react';
+import AnimeSection from './components/AnimeSection';
 
 // --- Assets & Constants ---
 const COUPLE_PHOTO_URL = "https://images.unsplash.com/photo-1516589178581-6cd7833ae3b2?q=80&w=687&auto=format&fit=crop";
@@ -2099,6 +2100,7 @@ const World = ({ onBackHome, userName }) => {
         {activeTab === 'journey' && <Journey />}
         {activeTab === 'gallery' && <Gallery />}
         {activeTab === 'playlist' && <PlaylistView onPlaySong={playSongFromList} onShufflePlay={handleShufflePlay} />}
+        {activeTab === 'anime' && <AnimeSection />}
 
         {activeTab === 'why-love' && <WhyILoveYou />}
         {activeTab === 'dreams' && <BucketList />}
@@ -2124,6 +2126,7 @@ const WorldNavbar = ({ activeTab, onTabChange, onHomeClick }) => {
     { id: 'journey', label: 'Our Journey', icon: Map },
     { id: 'gallery', label: 'Gallery', icon: ImageIcon },
     { id: 'playlist', label: 'Playlist', icon: Music },
+    { id: 'anime', label: 'Anime', icon: Tv },
     { id: 'dreams', label: 'Our Dreams', icon: Star },
     { id: 'why-love', label: 'Why I Love You', icon: Heart },
     { id: 'letter', label: 'Letter', icon: KeyRound },
