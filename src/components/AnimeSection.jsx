@@ -237,22 +237,30 @@ const AnimeSection = () => {
     const observerRef = useRef(null);
     const sentinelRef = useRef(null);
 
-    // Debounce search — reset list on new search
+    const prevQueryRef = useRef('');
+    const prevGenreRef = useRef('');
+
+    // Debounce search
     useEffect(() => {
         const timer = setTimeout(() => {
-            setDebouncedQuery(searchQuery);
-            setAnimeList([]);
-            setPage(1);
-            setHasMore(true);
+            setDebouncedQuery(prev => {
+                if (prev !== searchQuery) {
+                    setPage(1);
+                    setHasMore(true);
+                }
+                return searchQuery;
+            });
         }, 400);
         return () => clearTimeout(timer);
     }, [searchQuery]);
 
-    // Reset list on genre change
+    // Reset on genre change (skip initial mount)
     useEffect(() => {
-        setAnimeList([]);
-        setPage(1);
-        setHasMore(true);
+        if (prevGenreRef.current !== selectedGenre && prevGenreRef.current !== '') {
+            setPage(1);
+            setHasMore(true);
+        }
+        prevGenreRef.current = selectedGenre;
     }, [selectedGenre]);
 
     // Fetch genres once
